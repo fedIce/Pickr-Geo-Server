@@ -1,0 +1,20 @@
+{
+  "name": "map_nav_server",
+  "version": "1.0.0",
+  "description": "Node based navigation and map functonality server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon index.js"
+  },
+  "author": "Freedom Amadi Chinonso",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "express": "^4.17.1",
+    "firebase-admin": "^9.10.0",
+    "geofirex": "^0.1.0",
+    "rxjs": "^7.2.0",
+    "url": "^0.11.0"
+  }
+}
