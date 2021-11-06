@@ -22,6 +22,7 @@ app.use(bodyParser.json());
 GeoHashRoutes.geoHashRoutesConfig(app);
 GeoHashRoutes.getNearbyPlaces(app);
 GeoHashRoutes.getFilteredPlaces(app);
+GeoHashRoutes.getSearchResults(app);
 
 
 app.listen(port, function (){

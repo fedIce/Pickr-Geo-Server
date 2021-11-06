@@ -18,3 +18,9 @@ exports.getFilteredPlaces = (app) => {
         GeoHashController.getFilteredPlaces
     ])
 }
+
+exports.getSearchResults = (app) => {
+    app.post('/search', [
+        GeoHashController.getSearchResult
+    ])
+}
