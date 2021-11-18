@@ -94,7 +94,6 @@ exports.getSearchResult =  async (req, res) => {
 
             let search = data.search_text
             const title = [];
-            console.log('sugg: ', suggestions.data())
             const suggestions_list = suggestions?.data().search_string
             const search_result = await suggestions_list.filter(str => search.toLowerCase().split(' ').some(sub_str => str.includes(sub_str.toLowerCase())))
 
@@ -119,26 +118,7 @@ exports.getFilteredPlaces = async (req, res) => {
     
     let query = await firestore.collection(data.option)
     
-    // if( data.min_rent > 50 || data.max_rent < 1000 ){
-    //     query = query.where("price", ">", data.min_rent).where("price", "<", data.max_rent)
-    // }
-    // FILTER QUERY: {
-    //     min_rent: 50,
-    //     max_rent: 1000,
-    //     bedrooms: [],
-    //     bathrooms: [],
-    //     furnished: 'Any',
-    //     facilities: [],
-    //     minsToBus: 0,
-    //     sortBy: 'Distance',
-    //     categories: [],
-    //     features: [],
-    //     goodFor: [],
-    //     area: [],
-    //     distance: 754,
-    //     position: { longitude: 35.18722, latitude: 33.355301 }
-    //   }
-    // query = query.limit(20)
+    
     query.get().then(snapshot => {
         return snapshot.forEach(doc => {
             // console.log({ docid: doc.id, pos: doc.data().pos })
@@ -150,6 +130,7 @@ exports.getFilteredPlaces = async (req, res) => {
 
     // // const hits = await geofirex.get(geoRef)
     geoRef.subscribe(v => {
+
 
         if(data.option === "Apartments"){
 
@@ -192,7 +173,7 @@ exports.getFilteredPlaces = async (req, res) => {
         if(data.option === "Places"){
 
             if  ( data?.categories?.length > 0 ){
-                v = v.filter(item => data.categories.includes(item.category[0].id ))
+                v = v.filter(item => data.categories.includes(item.category[0].id ) || data.categories.includes(item.sub_category_id[0].id) )
             }
 
             if(data?.area?.length > 0){
