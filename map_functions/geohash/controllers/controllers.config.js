@@ -33,6 +33,9 @@ exports.getPlaces = async (req, res) => {
 
         // const hits = await geofirex.get(geoRef)
         geoRef.subscribe(v => {
+            if(data.option === 'Apartments'){
+                v = v.filter(item => item.status === 'available');
+            }
             return res.send({ len: v.length, v })
         })
         // geoRef.unsubscribe();
@@ -89,6 +92,7 @@ exports.getSearchResult =  async (req, res) => {
         loadDBData(data, 'Places').then( async w => {
 
             if(data.type === 'list'){
+                v = v.filter(item => item.status ==='available');
                 return res.send({len: [...v, ...w].len, m: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1)], type: 'list' })
             }
 
@@ -100,6 +104,7 @@ exports.getSearchResult =  async (req, res) => {
             search_result.map((j) => {
                 title.push({ title: j,  type: 'suggestion' })
             })
+            v = v.filter(item => item.status ==='available');
 
             return res.send({len: [...v, ...w, ...title].len, v: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1), ...title] })
         }).catch(err => console.log('LVL2_ERROR:: ', err))
