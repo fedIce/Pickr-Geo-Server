@@ -9,11 +9,16 @@ const { resolve } = require('url')
 
 exports.getHash = (req, res) => {
 
-    const queryObject = req.body
-    const data = queryObject.data
+    try{
+        const queryObject = req.body
+        const data = queryObject.data
+        
+        const position = geo.point(data.position.lon, data.position.lat);
+        return res.status(200).send({name: data.name, position})
+    }catch (error) {
+        return res.status(500).send({ error: error })
+    }
     
-    const position = geo.point(data.position.lon, data.position.lat);
-    return res.status(200).send({name: data.name, position})
 }
 
 
@@ -32,7 +37,7 @@ exports.getPlaces = async (req, res) => {
         const geoRef = await geo.query(firestoreRef).within(geo.point(data.latitude, data.longitude), data.radius, 'pos')
 
         // const hits = await geofirex.get(geoRef)
-        geoRef.subscribe(v => {
+        return geoRef.subscribe(v => {
             if(data.option === 'Apartments'){
                 v = v.filter(item => item.status === 'available');
             }
@@ -43,7 +48,7 @@ exports.getPlaces = async (req, res) => {
     }catch(e) {
         console.log(e)
         geoRef.unsubscribe()
-        return res.status(500).send(e)
+        return res.status(500).send({error: e})
 
     }
     
@@ -79,138 +84,152 @@ const loadDBData = (data, option) => {
 
 
 exports.getSearchResult =  async (req, res) => {
+    try{
+        console.log('CALLING GET SEARCH RESULTS...')
+        const queryObject = req.body
+        const data = queryObject.data
+        let suggestions =  await firestore.collection('SearchSuggestions').doc('suggestions').get()
 
-    console.log('CALLING GET SEARCH RESULTS...')
-    const queryObject = req.body
-    const data = queryObject.data
-    let suggestions =  await firestore.collection('SearchSuggestions').doc('suggestions').get()
 
 
+        return loadDBData(data, 'Apartments').then(v => {
+            
+            loadDBData(data, 'Places').then( async w => {
 
-    return loadDBData(data, 'Apartments').then(v => {
-        console.log(v)
-        loadDBData(data, 'Places').then( async w => {
+                if(data.type === 'list'){
+                    console.log([...v,...w])
+                    v = await v.filter(item => item.data.status === 'available');
+                    return res.send({len: [...v, ...w].len, m: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1)], type: 'list' })
+                }
 
-            if(data.type === 'list'){
-                v = v.filter(item => item.status ==='available');
-                return res.send({len: [...v, ...w].len, m: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1)], type: 'list' })
-            }
+                let search = data.search_text
+                const title = [];
+                const suggestions_list = suggestions?.data().search_string
+                const search_result = await suggestions_list.filter(str => search.toLowerCase().split(' ').some(sub_str => str.includes(sub_str.toLowerCase())))
 
-            let search = data.search_text
-            const title = [];
-            const suggestions_list = suggestions?.data().search_string
-            const search_result = await suggestions_list.filter(str => search.toLowerCase().split(' ').some(sub_str => str.includes(sub_str.toLowerCase())))
+                search_result.map((j) => {
+                    title.push({ title: j,  type: 'suggestion' })
+                })
+                v = await v.filter(item => item.data.status ==='available');
 
-            search_result.map((j) => {
-                title.push({ title: j,  type: 'suggestion' })
-            })
-            v = v.filter(item => item.status ==='available');
+                return res.send({len: [...v, ...w, ...title].len, v: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1), ...title] })
+            }).catch(err => console.log('LVL2_ERROR:: ', err))
+        }).catch(err => console.log('LVL1_ERROR:: ', err))
 
-            return res.send({len: [...v, ...w, ...title].len, v: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1), ...title] })
-        }).catch(err => console.log('LVL2_ERROR:: ', err))
-    }).catch(err => console.log('LVL1_ERROR:: ', err))
-
+    }catch (error){
+        console.log(error)
+        return res.status(500).send({error})
+    }
+    
 }
 
 
 exports.getFilteredPlaces = async (req, res) => {
 
+    try{
+        const queryObject = req.body
+        const data = queryObject.data
 
-    const queryObject = req.body
-    const data = queryObject.data
-
-    console.log("FILTER QUERY:", data)
-    
-    let query = await firestore.collection(data.option)
-    
-    
-    query.get().then(snapshot => {
-        return snapshot.forEach(doc => {
-            // console.log({ docid: doc.id, pos: doc.data().pos })
-            return { docid: doc.id, pos: doc.data().pos }
+        console.log("FILTER QUERY:", data)
+        
+        let query = await firestore.collection(data.option)
+        
+        
+        query.get().then(snapshot => {
+            return snapshot.forEach(doc => {
+                // console.log({ docid: doc.id, pos: doc.data().pos })
+                return { docid: doc.id, pos: doc.data().pos }
+            })
         })
-    })
 
-    const geoRef = await geo.query(query).within(geo.point(data.position.latitude, data.position.longitude), data.distance, 'pos')
+        const geoRef = await geo.query(query).within(geo.point(data.position.latitude, data.position.longitude), data.distance, 'pos')
 
-    // // const hits = await geofirex.get(geoRef)
-    geoRef.subscribe(v => {
+        // // const hits = await geofirex.get(geoRef)
+        geoRef.subscribe( v => {
+            
+
+            if(data.option === "Apartments"){
+
+                v = v.filter(item => item.status ==='available');
 
 
-        if(data.option === "Apartments"){
+                if(data.min_rent > 50 || data.max_rent < 1000){
+                    v = v.filter(item => item.price > data.min_rent && item.price < data.max_rent);
+                }
+        
+                if(data.bedrooms.length > 0){
+                    v = v.filter(item => data.bedrooms.some( (v) => item.living_space.indexOf(v) >= 0 )  )
+                }
+        
+        
+                if(data.minsToBus > 0){
+                    v = v.filter(item => item.features.minsToBusttop <= data.minsToBus )
+                }
 
-            v = v.filter(item => item.status ==='available');
+                if(data.rent.length > 0){
+                    v = v.filter(item => data.rent.includes(item.features.rents))
+                }
 
+                if(data.area.length > 0){
+                    v = v.filter(item => data.area.includes(item.address.area) || data.area.some((v) => item.title.translations.en_us.indexOf(v) >= 0 ) || data.area.some((v) => item.description.translations.en_us.indexOf(v) >= 0 ) || data.area.some((v) => item.address.address_string.indexOf(v) >= 0 ) )
+                }
+        
+                if(data.bathrooms.length > 0){
+                    if( !data.bathrooms.includes("Any")){
+                        v = v.filter(item => data.bathrooms.includes(parseInt(item.living_space.split("+")[1])))
+                    }
+                }
 
-            if(data.min_rent > 50 || data.max_rent < 1000){
-                v = v.filter(item => item.price > data.min_rent && item.price < data.max_rent);
-            }
-    
-            if(data.bedrooms.length > 0){
-                v = v.filter(item => data.bedrooms.some( (v) => item.living_space.indexOf(v) >= 0 )  )
-            }
-    
-    
-            if(data.minsToBus > 0){
-                v = v.filter(item => item.features.minsToBusttop <= data.minsToBus )
-            }
-
-            if(data.rent.length > 0){
-                v = v.filter(item => data.rent.includes(item.features.rents))
-            }
-
-            if(data.area.length > 0){
-                v = v.filter(item => data.area.includes(item.address.area) || data.area.some((v) => item.title.translations.en_us.indexOf(v) >= 0 ) || data.area.some((v) => item.description.translations.en_us.indexOf(v) >= 0 ) || data.area.some((v) => item.address.address_string.indexOf(v) >= 0 ) )
-            }
-    
-            if(data.bathrooms.length > 0){
-                if( !data.bathrooms.includes("Any")){
-                    v = v.filter(item => data.bathrooms.includes(parseInt(item.living_space.split("+")[1])))
+                if( data.facilities.length > 0 ){
+                    v = v.filter(item => data.facilities.some( item_2 => item.features[item_2] === true ) )
                 }
             }
 
-            if( data.facilities.length > 0 ){
-                v = v.filter(item => data.facilities.some( item_2 => item.features[item_2] === true ) )
+
+            if(data.option === "Places"){
+
+                if  ( data?.categories?.length > 0 ){
+                    v = v.filter(item => data.categories.includes(item.category[0].id ) || data.categories.includes(item.sub_category_id[0].id) )
+                }
+
+                if(data?.area?.length > 0){
+                    v = v.filter(item => data.area.includes(item.address.area) || data.area.includes(item.address.area.toLowerCase()) || data.area.some((v) => item.title.translations.en_us.toLowerCase().indexOf(v.toLowerCase()) >= 0 ) || data.area.some((v) => item.description.translations.en_us.toLowerCase().indexOf(v.toLowerCase()) >= 0 ) || data.area.some((v) => item.address.address_string.indexOf(v) >= 0 ) )
+                }
+
+                if( data.features?.length > 0 ){
+                    v = v.filter(item => data.features.some( item_2 => item.features[item_2] === true ) )
+                }
+
+                if( data.goodFor?.length > 0 ){
+                    v = v.filter(item => data.goodFor.includes(item.features.good_for) )
+                }
             }
-        }
 
+            
 
-        if(data.option === "Places"){
-
-            if  ( data?.categories?.length > 0 ){
-                v = v.filter(item => data.categories.includes(item.category[0].id ) || data.categories.includes(item.sub_category_id[0].id) )
+            if(data.sortBy){
+                if(data.sortBy[0] === 'Distance'){
+                    v = v.sort((a, b) => (a.hitMetadata.distance > b.hitMetadata.distance) ? 1 : -1)
+                }else if(data.sortBy[0] === 'Price'){
+                    v = v.sort((a, b) => (a.price < b.price) ? 1 : -1)
+                }else if(data.sortBy[0] === 'Newest'){
+                    v = v.sort((a, b) => (a.created_at < b.created_at) ? 1 : -1)
+                }else if(data.sortBy[0] === 'Minutes To Busstop'){
+                    v = v.sort((a, b) => (a.features.minsToBusttop > b.features.minsToBusttop) ? 1 : -1)
+                }
             }
 
-            if(data?.area?.length > 0){
-                v = v.filter(item => data.area.includes(item.address.area) || data.area.includes(item.address.area.toLowerCase()) || data.area.some((v) => item.title.translations.en_us.toLowerCase().indexOf(v.toLowerCase()) >= 0 ) || data.area.some((v) => item.description.translations.en_us.toLowerCase().indexOf(v.toLowerCase()) >= 0 ) || data.area.some((v) => item.address.address_string.indexOf(v) >= 0 ) )
-            }
+            res.send({ len: v.length, v })
+            return
+        })
 
-            if( data.features?.length > 0 ){
-                v = v.filter(item => data.features.some( item_2 => item.features[item_2] === true ) )
-            }
 
-            if( data.goodFor?.length > 0 ){
-                v = v.filter(item => data.goodFor.includes(item.features.good_for) )
-            }
-        }
+    }catch (error){
+        console.log(error)
+        res.status(500).send({error})
+    }
 
-        
-
-        if(data.sortBy){
-            if(data.sortBy[0] === 'Distance'){
-                v = v.sort((a, b) => (a.hitMetadata.distance > b.hitMetadata.distance) ? 1 : -1)
-            }else if(data.sortBy[0] === 'Price'){
-                v = v.sort((a, b) => (a.price < b.price) ? 1 : -1)
-            }else if(data.sortBy[0] === 'Newest'){
-                v = v.sort((a, b) => (a.created_at < b.created_at) ? 1 : -1)
-            }else if(data.sortBy[0] === 'Minutes To Busstop'){
-                v = v.sort((a, b) => (a.features.minsToBusttop > b.features.minsToBusttop) ? 1 : -1)
-            }
-        }
-
-        res.send({ len: v.length, v })
-    })
-
+    
     // geoRef.unsubscribe();
 
     // res.status(200).send(hits.catch(err => err))
