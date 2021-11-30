@@ -1,6 +1,10 @@
 const express = require('express');
-const app = express();
+const cluster =  require('cluster');
+const os = require('os');
 const bodyParser = require('body-parser');
+
+const numOfCpus = os.cpus().length
+const app = express();
 var port = process.env.PORT || 5030
 const GeoHashRoutes = require('./map_functions/geohash/routes/routes.config')
 
@@ -24,7 +28,17 @@ GeoHashRoutes.getNearbyPlaces(app);
 GeoHashRoutes.getFilteredPlaces(app);
 GeoHashRoutes.getSearchResults(app);
 
+if(cluster.isMaster){
+    for( let i = 0; i < numOfCpus; i++){
+        cluster.fork()
+    }
+    cluster.on('exit',( worker, code, signal) => {
+        console.log(`Worker ${worker.process.pid} died`)
+        cluster.fork()
+    })
+}else{
+    app.listen(port, function (){
+        console.log(`${process.pid}: listening on port ${port}`)
+    } ) 
+}
 
-app.listen(port, function (){
-    console.log('App is now listening on port %s', port)
-} )

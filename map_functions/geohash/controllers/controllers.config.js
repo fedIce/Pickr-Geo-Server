@@ -7,15 +7,18 @@ const rxjs = require('rxjs')
 const { resolve } = require('url')
 
 
-exports.getHash = (req, res) => {
+exports.getHash = async (req, res) => {
 
     try{
+
         const queryObject = req.body
         const data = queryObject.data
         
-        const position = geo.point(data.position.lon, data.position.lat);
-        return res.status(200).send({name: data.name, position})
+        const position = await geo.point(data.position.lon, data.position.lat);
+        return await res.status(200).send({name: data.name, position})
+        
     }catch (error) {
+        console.log('===0===> ', error)
         return res.status(500).send({ error: error })
     }
     
@@ -24,11 +27,12 @@ exports.getHash = (req, res) => {
 
 exports.getPlaces = async (req, res) => {
     try{
+
         const queryObject = req.body
         const data = queryObject.data
         
         const firestoreRef = await firestore.collection(data.option)
-        firestoreRef.get().then(snapshot => {
+        await firestoreRef.get().then(snapshot => {
             return snapshot.forEach(doc => {
                 console.log({ docid: doc.id, pos: doc.data().pos })
                 return { docid: doc.id, pos: doc.data().pos }
@@ -37,31 +41,23 @@ exports.getPlaces = async (req, res) => {
         const geoRef = await geo.query(firestoreRef).within(geo.point(data.latitude, data.longitude), data.radius, 'pos')
 
         // const hits = await geofirex.get(geoRef)
-        return geoRef.subscribe(v => {
-            if(data.option === 'Apartments'){
+        return geoRef.subscribe(async v => {
+            if(data.option === 'Apartments' && data.device !== 'web'){
                 v = v.filter(item => item.status === 'available');
             }
-            return res.send({ len: v.length, v })
+            
+            return await res.send({ len: v.length, v })
         })
         // geoRef.unsubscribe();
 
     }catch(e) {
-        console.log(e)
+        console.log('===1===> ',e)
         geoRef.unsubscribe()
         return res.status(500).send({error: e})
 
     }
     
 }
-
-// const fuzzyMatch = (text, search) => {
-
-//     const searchWords = search.split(' ');
-//     return searchWords.forEach(s => {
-//         return text.includes(s)
-//     })
-    
-// }
 
 
 const loadDBData = (data, option) => {
@@ -86,20 +82,21 @@ const loadDBData = (data, option) => {
 exports.getSearchResult =  async (req, res) => {
     try{
         console.log('CALLING GET SEARCH RESULTS...')
+        
         const queryObject = req.body
         const data = queryObject.data
         let suggestions =  await firestore.collection('SearchSuggestions').doc('suggestions').get()
 
 
 
-        return loadDBData(data, 'Apartments').then(v => {
+        return loadDBData(data, 'Apartments').then( async v => {
             
             loadDBData(data, 'Places').then( async w => {
 
                 if(data.type === 'list'){
                     console.log([...v,...w])
                     v = await v.filter(item => item.data.status === 'available');
-                    return res.send({len: [...v, ...w].len, m: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1)], type: 'list' })
+                    return await res.send({len: [...v, ...w].len, m: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1)], type: 'list' })
                 }
 
                 let search = data.search_text
@@ -112,12 +109,13 @@ exports.getSearchResult =  async (req, res) => {
                 })
                 v = await v.filter(item => item.data.status ==='available');
 
-                return res.send({len: [...v, ...w, ...title].len, v: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1), ...title] })
+                if(res.headerSent) return console.log("HEADERS SENT ERROR!!!")
+                return await res.send({len: [...v, ...w, ...title].len, v: [...[...v,...w].sort((a,b) => a.distance > b.distance ? 1 : -1), ...title] })
             }).catch(err => console.log('LVL2_ERROR:: ', err))
         }).catch(err => console.log('LVL1_ERROR:: ', err))
 
     }catch (error){
-        console.log(error)
+        console.log('===2===> ',error)
         return res.status(500).send({error})
     }
     
@@ -127,6 +125,7 @@ exports.getSearchResult =  async (req, res) => {
 exports.getFilteredPlaces = async (req, res) => {
 
     try{
+
         const queryObject = req.body
         const data = queryObject.data
 
@@ -145,7 +144,7 @@ exports.getFilteredPlaces = async (req, res) => {
         const geoRef = await geo.query(query).within(geo.point(data.position.latitude, data.position.longitude), data.distance, 'pos')
 
         // // const hits = await geofirex.get(geoRef)
-        geoRef.subscribe( v => {
+        geoRef.subscribe( async v => {
             
 
             if(data.option === "Apartments"){
@@ -218,9 +217,9 @@ exports.getFilteredPlaces = async (req, res) => {
                     v = v.sort((a, b) => (a.features.minsToBusttop > b.features.minsToBusttop) ? 1 : -1)
                 }
             }
+            if(res.headerSent) return console.log("HEADERS SENT ERROR!!!")
+            return await res.send({ len: v.length, v })
 
-            res.send({ len: v.length, v })
-            return
         })
 
 
@@ -229,8 +228,4 @@ exports.getFilteredPlaces = async (req, res) => {
         res.status(500).send({error})
     }
 
-    
-    // geoRef.unsubscribe();
-
-    // res.status(200).send(hits.catch(err => err))
 }
