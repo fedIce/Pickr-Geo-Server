@@ -64,10 +64,18 @@ const loadDBData = (data, option) => {
     return new Promise(async (resolve, reject) => {
         let queryA = await firestore.collection(option)
         let titles = [];
+        let queryLogic = (i, j) =>  i.address.address_string.toLowerCase().includes(j.toLowerCase()) ||
+                                    i.title.translations.en_us.toLowerCase().includes(j.toLowerCase()) ||
+                                    i.parent_category_id.some(cat => cat.title.translation.en_us.toLowerCase().includes(j.toLowerCase())) ||
+                                    i.sub_category_id.some(cat => cat.title.translation.en_us.toLowerCase().includes(j.toLowerCase())) 
+            
+           
+        
 
         const geoRefA =  geo.query(queryA).within(geo.point(data.position.latitude, data.position.longitude), data.distance, 'pos')
         geoRefA.subscribe((v) => {
-                v = v.filter(i => data.search_text.split(' ').some(j => i.address.address_string.toLowerCase().includes(j.toLowerCase()) ))
+                v = v.filter(i => data.search_text.split(' ').some(j => queryLogic(i, j)))
+                console.log(v)
                 if(v.length > 0){
                     v.map(j => {
                        titles.push({ title: j.title.translations.en_us, image: j.images[0], distance: j.hitMetadata.distance, type: j.parent_category_id? j.parent_category_id[0].id : j.category[0].id, data: j  })
