@@ -196,7 +196,33 @@ exports.getFilteredPlaces = async (req, res) => {
             if(data.option === "Places"){
 
                 if  ( data?.categories?.length > 0 ){
-                    v = v.filter(item => data.categories.includes(item.category[0].id ) || data.categories.includes(item.sub_category_id[0].id) )
+                    if(data.categories.some(i => i.includes('Open_Now'))){
+                        let clientTime = data.categories.filter(n => n.includes('Open_Now'))[0].split('-');
+                        const time_string = clientTime[1];
+                        const days = ['Sunday','Monday', 'Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+                        console.log(clientTime)
+                        v = v.filter( item => {
+                            if((typeof item.open_hours !== 'string' && item.open_hours.day === days[clientTime[2]] )){
+                                clientTime = time_string.split(" ")[1];
+                                const time = clientTime.split(":");
+                                let hour = parseInt(time[0]);
+                                let mins = parseInt(time[1]);
+                                let period = hour <= 12? 'AM' : 'PM';
+                                hour = hour <= 12? hour : hour - 12;
+                                console.log(`The Time is ${hour}:${mins} ${period}`)
+                                let openNow = (i) => (parseInt(i.openTime.hours) >= hour && parseInt(i.openTime.minutes) >= mins) && (parseInt(i.closeTime.hours) <= hour && parseInt(i.closeTime.minutes) >= mins) 
+                                let conditions = (i) => i.open === true && openNow(i)
+                                
+                                return item.open_hours.some(val => conditions(val) )
+                            }
+                            return !item
+                        })
+                    }else{
+                        v = v.filter(item => data.categories.includes(item.category[0].id ) || data.categories.includes(item.sub_category_id[0].id) )
+                    }
+
+                    console.log('RESULTS: ',v)
                 }
 
                 if(data?.area?.length > 0){
