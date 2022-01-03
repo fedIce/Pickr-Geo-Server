@@ -200,21 +200,32 @@ exports.getFilteredPlaces = async (req, res) => {
                         let clientTime = data.categories.filter(n => n.includes('Open_Now'))[0].split('-');
                         const time_string = clientTime[1];
                         const days = ['Sunday','Monday', 'Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                        const thisDay = parseInt(clientTime[2])
 
-                        console.log(clientTime)
+                        console.log(days[thisDay])
                         v = v.filter( item => {
-                            if((typeof item.open_hours !== 'string' && item.open_hours.day === days[clientTime[2]] )){
+                            if(((typeof item.open_hours !== 'string' && item.open_hours !== false))){
+                                const today = item.open_hours.filter(i => i.day === days[thisDay] )[0]
+                                console.log(today,`- ${days[thisDay]}`)
+
                                 clientTime = time_string.split(" ")[1];
                                 const time = clientTime.split(":");
                                 let hour = parseInt(time[0]);
                                 let mins = parseInt(time[1]);
                                 let period = hour <= 12? 'AM' : 'PM';
-                                hour = hour <= 12? hour : hour - 12;
+                                let L_hour = hour <= 12? hour : hour - 12;
+                                let calcCloseTime =(time, p) => (p === 'AM') ? time + 24 : time;
+
                                 console.log(`The Time is ${hour}:${mins} ${period}`)
-                                let openNow = (i) => (parseInt(i.openTime.hours) >= hour && parseInt(i.openTime.minutes) >= mins) && (parseInt(i.closeTime.hours) <= hour && parseInt(i.closeTime.minutes) >= mins) 
-                                let conditions = (i) => i.open === true && openNow(i)
+                                // console.log(`the open time:< ${item.open_hours[6].openTime?.hours}  |----- ${hour} >   < ${item.open_hours[6].openTime?.minutes} ------- ${mins}> `)
+                                // console.log(`the close time: < ${calcCloseTime(parseInt(item.open_hours[6].closeTime?.hours), 'PM')} -------- ${hour + 12 }> and < ${item.open_hours[6].closeTime?.minutes} ----- ${mins}> `)
+                                let openNow = (i) => (parseInt(i.openTime.hours) <= hour && parseInt(i.openTime.minutes) <= mins) && (calcCloseTime(parseInt(i.closeTime.hours)+12, i.closeTime.period) >= calcCloseTime(hour, i.closeTime.period) && parseInt(i.closeTime.minutes) <= mins) 
+                                let conditions = () => today.open === true && openNow(today)
+
+                                console.log('******'+conditions())
+                                return conditions() && item
                                 
-                                return item.open_hours.some(val => conditions(val) )
+                                // return item.open_hours.some(val => conditions(val) )
                             }
                             return !item
                         })
