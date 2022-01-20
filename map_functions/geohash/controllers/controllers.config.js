@@ -31,7 +31,11 @@ exports.getPlaces = async (req, res) => {
         const queryObject = req.body
         const data = queryObject.data
         
-        const firestoreRef = await firestore.collection(data.option)
+        let firestoreRef = await firestore.collection(data.option)
+        if(data.device === 'web'){
+            console.log(data.user.uid)
+            firestoreRef = firestoreRef.where('UID','==', data.user?.uid)
+        }
         await firestoreRef.get().then(snapshot => {
             return snapshot.forEach(doc => {
                 console.log({ docid: doc.id, pos: doc.data().pos })
