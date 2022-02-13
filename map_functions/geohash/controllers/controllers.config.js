@@ -167,6 +167,10 @@ exports.getFilteredPlaces = async (req, res) => {
                 if(data.min_rent > 50 || data.max_rent < 1000){
                     v = v.filter(item => item.price > data.min_rent && item.price < data.max_rent);
                 }
+
+                if(data.currency && data.currency.length > 0){
+                    v = v.filter(item => data.currency.some(a => item.features.acceptedCurrency[a] === true )); 
+                }
         
                 if(data.bedrooms.length > 0){
                     v = v.filter(item => data.bedrooms.some( (v) => item.living_space.indexOf(v) >= 0 )  )
@@ -223,6 +227,7 @@ exports.getFilteredPlaces = async (req, res) => {
                                 console.log(`The Time is ${hour}:${mins} ${period}`)
                                 // console.log(`the open time:< ${item.open_hours[6].openTime?.hours}  |----- ${hour} >   < ${item.open_hours[6].openTime?.minutes} ------- ${mins}> `)
                                 // console.log(`the close time: < ${calcCloseTime(parseInt(item.open_hours[6].closeTime?.hours), 'PM')} -------- ${hour + 12 }> and < ${item.open_hours[6].closeTime?.minutes} ----- ${mins}> `)
+                                // let openNow = (i) => (hour > (parseInt(i.openTime.hours)) && (hour < (parseInt(i.closeTime.hours)+12) )) && ((mins > parseInt(i.openTime.minutes) ) && mins < parseInt(i.closeTime.minutes) )
                                 let openNow = (i) => (parseInt(i.openTime.hours) <= hour && parseInt(i.openTime.minutes) <= mins) && (calcCloseTime(parseInt(i.closeTime.hours)+12, i.closeTime.period) >= calcCloseTime(hour, i.closeTime.period) && parseInt(i.closeTime.minutes) <= mins) 
                                 let conditions = () => today.open === true && openNow(today)
 
